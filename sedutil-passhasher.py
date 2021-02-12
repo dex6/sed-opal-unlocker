@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 # - but should work in python 2.7 as well.
 #
 #   Copyright 2019 Michal Gawlik
@@ -179,10 +179,14 @@ class Argon2Hasher(object):
 
 def main():
     """Main module function implementing script body."""
-    if len(sys.argv) not in (3, 4):
-        print("Usage: {} <disk_path> <output_passwordhash_file_path> [encrypt_password]".format(sys.argv[0]))
+    if len(sys.argv) not in (3, 4, 5):
+        print("Usage: {} <disk_path> <output_passwordhash_file_path> [encrypt_password] [algorithm]".format(sys.argv[0]))
         print("       when encrypt_password is 1, passwordhash file will be encrypted")
         print("       by additional passphrase you'll be asked for.")
+        print("")
+        print("       algorithm can be one of 'sha1' (default) or 'sha512'.")
+        print("       sha1 is used by the DriveTrustAlliance fork of sedutil.")
+        print("       sha512 is used by the ChubbyAnt fork of sedutil.")
         return 0
 
     dev = sys.argv[1]
@@ -191,6 +195,15 @@ def main():
         encrypt_password = bool(int(sys.argv[3]) == 1)
     except Exception:
         encrypt_password = False
+
+    try:
+        algorithm = sys.argv[4]
+    except Exception:
+        algorithm = 'sha1'
+
+    if algorithm not in ('sha1', 'sha512'):
+        print("algorithm must be 'sha1' or 'sha512'")
+        return 1
 
     # Read disk serial number which is needed to salt the password hash.
     # On the wire, the serial number is 20 byte string, out of which some store
@@ -224,7 +237,13 @@ def main():
 
     # read disk password and hash it using the same settings sedutil-cli uses
     disk_password = getpass.getpass("Enter SED password for {} (CTRL+C to quit): ".format(dev))
-    hashed = hashlib.pbkdf2_hmac('sha1', disk_password.encode('utf8'), serial, 75000, 32)
+
+    if algorithm == 'sha1':
+        iterations = 75000
+    else:
+        # From https://github.com/ChubbyAnt/sedutil/blob/master/Common/DtaHashPwd.h
+        iterations = 500000
+    hashed = hashlib.pbkdf2_hmac(algorithm, disk_password.encode('utf8'), serial, iterations, 32)
 
     # if hash is going to be encrypted, read additional passphrase and salt
     if encrypt_password:
