@@ -18,7 +18,7 @@ I'm using this tool to unlock:
 - turning off MBR shadowing after unlocking
 - saving drive password into the Linux kernel (unlock support when the system is waking from S3 sleep)
 - reads password from a separate file
-- supports password hashing used by sedutil-cli via separate one-time-use script
+- supports password hashing used by sedutil-cli (both original Drive Trust Alliance SHA1 version and ChubbyAnt SHA512 fork) via separate one-time-use script
 - supports SATA and NVME disks
 - password file can be encrypted with another passphrase (requires [libargon2](https://github.com/P-H-C/phc-winner-argon2))
 
@@ -72,14 +72,18 @@ Operation specifies what the tool should do:
 When the disk has been initialized with sedutil-cli without using its `-n` option, the password which is send to the disk is a hash calculated using PKBDF2 algorithm from plain text password and the disk serial for salting. In order to use such password with `sed-opal-unlocker`, all you need to do is to store the hashed password in the password file. Fortunately, there's a Python script which will do this for you.
 
 ```
-    sedutil-passhasher.py <disk_path> <output_passwordhash_file_path> [encrypt_password]
+    sedutil-passhasher.py <disk_path> <output_passwordhash_file_path> [encrypt_password] [algorithm]
 ```
 
 You need to call this script once, as root, cause it reads serial number from the disk needed to salt the password for hashing. Plaintext disk password is entered on script standard input. Hashed password (with some magic value for file type recognition) is written to the output file specified by second argument. Note that the file will be overwritten when it exists.
 
-When the last optional argument, [encrypt_password] is provided and set to 1, the hashed password file will be encrypted using additional "unlock passphrase", also interactively asked on standard input. The unlock passphrase can be optionally salted with current machine's DMI data (serial number or UUID), which makes it usable only on this machine. (This can be hacked around of course, but attacker needs to know this data cause it's not stored in the encrypted password file). When an encrypted password file is provided to sed-opal-unlocker, it will ask for the unlock passphrase on stdin. Note that password encryption currently cannot be used when disk has been initialized without password hashing (sedutil -n).
+When optional argument, [encrypt_password] is provided and set to 1, the hashed password file will be encrypted using additional "unlock passphrase", also interactively asked on standard input. The unlock passphrase can be optionally salted with current machine's DMI data (serial number or UUID), which makes it usable only on this machine. (This can be hacked around of course, but attacker needs to know this data cause it's not stored in the encrypted password file). When an encrypted password file is provided to sed-opal-unlocker, it will ask for the unlock passphrase on stdin. Note that password encryption currently cannot be used when disk has been initialized without password hashing (sedutil -n).
 
 Please also note that the encrypted password file does not store any authentication/verification data. Had the attacker obtained an encrypted passwordfile, he/she still cannot bruteforce it, cause only the disk can tell whether the unlock passphrase is correct or not. Even having access to the disk does not make bruteforcing easier, cause (a) argon2, (b) OPAL disks have limit how many times you may enter wrong password, and then will require a power-cycle to start talking to you again.
+
+The last optional argument, [algorithm], can be either 'sha1' (default when omitted) or 'sha512'. This should be chosen depending on sedutil version you have used to initialize the drive:
+- [original sedutil](https://github.com/Drive-Trust-Alliance/sedutil) uses SHA-1 for hashing passwords and unfortunately its development seems stalled
+- [ChubbyAnt fork](https://github.com/ChubbyAnt/sedutil) uses more secure SHA-512 algorithm, has many nice features developed by community and works on modern AMD/Intel systems - check it out!
 
 ### Bonus: disk initialization notes
 
